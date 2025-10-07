@@ -1,0 +1,30 @@
+version: "3.9"
+services:
+  landing_page-dev:
+    profiles: ["dev"]
+    build:
+      context: .
+      target: dev
+    container_name: landing-dev
+    ports:
+      - "${PORT:-5173}:${VITE_PORT:-5173}"
+    volumes:
+      - .:/app
+      - /app/node_modules
+    env_file:
+      - ./.env/.env.development
+
+    
+  landing_page-prod:
+    image: landing:v1.0
+    profiles: ["prod"]
+    build:
+      context: .
+    container_name: landing-prod
+    ports:
+      - "${PORT:-5173}:${CONTAINER_PORT:-5173}"
+    volumes:
+      - .:/app
+      - /app/node_modules
+    env_file:
+      - ./.env/.env.production
