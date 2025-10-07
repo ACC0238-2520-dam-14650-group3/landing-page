@@ -95,3 +95,18 @@ jobs:                                            # Lista de jobs (etapas) indepe
           provenance: false                          # (opcional) sin SBOM/provenance
           tags: ${{ steps.meta.outputs.tags }}       # Publica con 1.2.3 y sha
           labels: ${{ steps.meta.outputs.labels }}   # Labels útiles (source, revision, etc.)
+  deploy:                                        # 3) Despliegue en Dokploy
+    name: Deploy (Dokploy)
+    runs-on: ubuntu-latest
+    needs: docker                                # Espera a que la imagen esté publicada
+    steps:
+      - name: Trigger Dokploy redeploy
+        env:
+          WEBHOOK: ${{ secrets.DOKPLOY_WEBHOOK_URL }}
+        run: |
+          if [ -z "$WEBHOOK" ]; then
+            echo "Falta el secret DOKPLOY_WEBHOOK_URL"; exit 1;
+          fi
+          # Llamada al webhook de Dokploy: encola un redeploy (pull + restart)
+          curl -fsS -X POST "$WEBHOOK"
+          echo "Webhook enviado a Dokploy."
