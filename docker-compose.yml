@@ -20,9 +20,9 @@ services:
     profiles: ["prod"]
     build:
       context: .
-    container_name: landing-prod
+    container_name: nango-landing-prod
     ports:
-      - "${PORT:-5173}:${CONTAINER_PORT:-5173}"
+      - "${PORT:-5173}:${CONTAINER_PORT:-8080}"
     volumes:
       - .:/app
       - /app/node_modules
