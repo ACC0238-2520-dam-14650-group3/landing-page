@@ -83,7 +83,8 @@ jobs:                                            # Lista de jobs (etapas) indepe
             latest=false                                          # No generar :latest automáticamente
           tags: |
             type=raw,value=${{ needs.verify.outputs.version }}    # Tag principal: 1.2.3
-            type=sha                                              # Extra: sha-<commit> para trazabilidad
+            type=raw,value=latest
+            # type=sha                                              # Extra: sha-<commit> para trazabilidad
 
       - name: Build & Push                         # Construye la imagen (usando TU Dockerfile) y la publica
         uses: docker/build-push-action@v5
