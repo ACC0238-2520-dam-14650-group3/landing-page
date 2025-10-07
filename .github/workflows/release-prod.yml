@@ -1,0 +1,96 @@
+name: Release (prod tags -> GHCR -> Dokploy)     # Nombre visible del workflow en la pestaña "Actions"
+
+on:                                              # Cuándo se dispara el workflow
+  push:                                          # En pushes...
+    tags:                                        # ...que sean TAGS (releases)
+      - 'v*'                                     # Tags tipo v1.2.3
+      - '[0-9]+.[0-9]+.[0-9]+'                   # O 1.2.3 (sin la 'v')
+
+permissions:                                     # Permisos del GITHUB_TOKEN para este workflow
+  contents: read                                 # Puede leer el repo
+  packages: write                                # Puede publicar paquetes/imágenes en GHCR
+
+concurrency:                                     # Evita colisiones si empujas el mismo tag 2 veces
+  group: release-${{ github.ref }}               # Agrupa por ref (el tag actual)
+  cancel-in-progress: false                      # No cancela si ya hay uno corriendo de ese tag
+
+env:                                             # Variables comunes a todos los jobs
+  REGISTRY: ghcr.io                              # Dominio de GHCR
+  IMAGE_NAME: ${{ github.repository }}           # "owner/repo" (ya viene en minúsculas)
+
+jobs:                                            # Lista de jobs (etapas) independientes
+
+  verify:                                        # 1) Verificación rápida: el tag viene de prod
+    name: Verify tag ancestry
+    runs-on: ubuntu-latest                       # Runner Ubuntu
+    outputs:                                     # Exporta valores para los siguientes jobs
+      ok: ${{ steps.guard.outputs.ok }}          # Si pasó la verificación
+      version: ${{ steps.version.outputs.version }} # Versión "limpia" sin 'v'
+    steps:
+      - name: Checkout                           # Descarga el repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0                         # Historial completo (necesario para comparar ramas)
+
+      - name: Ensure tag belongs to prod branch  # Comprueba que el tag esté en la historia de prod
+        id: guard
+        run: |
+          git fetch origin prod:refs/remotes/origin/prod
+          TAG_COMMIT="$(git rev-parse $GITHUB_REF)"             # Commit exacto del tag
+          PROD_HEAD="$(git rev-parse refs/remotes/origin/prod)" # HEAD de prod remoto
+          BASE="$(git merge-base "$TAG_COMMIT" "$PROD_HEAD")"   # Ancestro común
+          if [ "$BASE" != "$TAG_COMMIT" ]; then                 # Si el tag NO está contenido en prod
+            echo "Tag ${GITHUB_REF_NAME} no pertenece a prod. Abortando."
+            echo "ok=false" >> $GITHUB_OUTPUT                    # Marca fallo
+            exit 1
+          fi
+          echo "ok=true" >> $GITHUB_OUTPUT                       # Marca OK
+
+      - name: Extract version from tag (drop leading v) # Quita el prefijo 'v' si lo hay (v1.2.3 -> 1.2.3)
+        id: version
+        run: |
+          RAW="${GITHUB_REF_NAME}"
+          CLEAN="${RAW#v}"
+          echo "version=$CLEAN" >> $GITHUB_OUTPUT
+
+  docker:                                         # 2) Construye y publica la imagen (UNICO build real)
+    name: Build & Push Image
+    runs-on: ubuntu-latest
+    needs: verify                                 # Espera a que 'verify' termine
+    if: needs.verify.outputs.ok == 'true'         # Solo si pasó la verificación
+    outputs:
+      image_tags: ${{ steps.meta.outputs.tags }}  # Exporta los tags (por si los necesitas)
+    steps:
+      - name: Checkout                            # Descarga el repo (Dockerfile incluido)
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx                # Prepara builder avanzado
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR                       # Login al registro ghcr.io con GITHUB_TOKEN
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Docker metadata (tags & labels)     # Genera etiquetas a partir de la versión
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}     # ghcr.io/owner/repo
+          flavor: |
+            latest=false                                          # No generar :latest automáticamente
+          tags: |
+            type=raw,value=${{ needs.verify.outputs.version }}    # Tag principal: 1.2.3
+            type=sha                                              # Extra: sha-<commit> para trazabilidad
+
+      - name: Build & Push                         # Construye la imagen (usando TU Dockerfile) y la publica
+        uses: docker/build-push-action@v5
+        with:
+          context: .                                 # Raíz del repo
+          file: ./Dockerfile                         # Usa tu Dockerfile (multi-stage)
+          push: true                                 # Empujar al registry
+          provenance: false                          # (opcional) sin SBOM/provenance
+          tags: ${{ steps.meta.outputs.tags }}       # Publica con 1.2.3 y sha
+          labels: ${{ steps.meta.outputs.labels }}   # Labels útiles (source, revision, etc.)
