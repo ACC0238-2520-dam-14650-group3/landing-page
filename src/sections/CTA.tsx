@@ -1,4 +1,3 @@
-import React from 'react'
 import ctaImage from '../assets/cta-oficial-ilustration.png'
 
 export default function CTA() {

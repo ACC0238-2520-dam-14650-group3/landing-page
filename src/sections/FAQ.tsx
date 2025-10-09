@@ -1,4 +1,3 @@
-import React from 'react'
 
 const faqs = [
   { q: '¿Quién puede usar Ñango?', a: 'Estudiantes y personal verificado de universidades participantes.' },

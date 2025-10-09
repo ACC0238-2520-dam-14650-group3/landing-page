@@ -1,4 +1,3 @@
-import React from 'react'
 export default function Navbar() {
   return (
     <header className="sticky top-0 z-40 bg-bg/70 backdrop-blur border-b border-text/10">

@@ -1,4 +1,4 @@
-import React from 'react'
+
 
 const features = [
   { title: 'Perfiles verificados', desc: 'Validación con credencial universitaria y estado de aprobación visible.', icon: '🔒' },

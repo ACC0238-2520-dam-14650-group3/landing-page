@@ -1,4 +1,4 @@
-import React from 'react'
+
 
 const steps = [
   { n: 1, t: 'Crea tu perfil', d: 'Regístrate con tu correo institucional y completa la verificación.' },
